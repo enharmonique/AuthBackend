@@ -15,10 +15,6 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @Configuration
 @EnableMethodSecurity
 public class WebSecurityConfig {
-
-    @Autowired
-    private CustomUserDetailsService userDetailsService;
-
     @Autowired
     private AuthTokenFilter authTokenFilter;
 
@@ -38,16 +34,28 @@ public class WebSecurityConfig {
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
                 // Disable CSRF as we're using JWT
-                .csrf().disable()
+                .csrf(csrf -> csrf
+                        .ignoringRequestMatchers("/h2-console/**") // Disable CSRF for H2 console
+                )
 
                 // Set session management to stateless
-                .sessionManagement().sessionCreationPolicy(SessionCreationPolicy.STATELESS)
-                .and()
+                .sessionManagement(session -> session
+                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+                )
 
                 // Set permissions on endpoints
-                .authorizeHttpRequests()
-                .requestMatchers("/api/auth/**").permitAll() // Public endpoints
-                .anyRequest().authenticated(); // Secure all other endpoints
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers("/api/auth/**").permitAll() // Public endpoints
+                        .requestMatchers("/h2-console/**").permitAll() // Allow H2 console
+                        .anyRequest().authenticated() // Secure all other endpoints
+                )
+
+                // Allow frames from the same origin to support H2 console
+                .headers(headers -> headers
+                        .frameOptions(frameOptions -> frameOptions
+                                .sameOrigin()
+                        )
+                );
 
         // Add JWT token filter before UsernamePasswordAuthenticationFilter
         http.addFilterBefore(authTokenFilter, UsernamePasswordAuthenticationFilter.class);
